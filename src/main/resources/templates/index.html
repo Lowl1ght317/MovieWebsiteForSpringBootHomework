@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电影网站</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: #1a1a2e; color: #fff; }
+        .header { background: linear-gradient(135deg, #16213e 0%, #0f3460 100%); padding: 20px; }
+        .nav { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; }
+        .logo { font-size: 24px; font-weight: bold; color: #e94560; }
+        .menu { display: flex; gap: 20px; }
+        .menu a { color: #fff; text-decoration: none; padding: 8px 16px; border-radius: 20px; transition: all 0.3s; }
+        .menu a:hover { background: #e94560; }
+        .main { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .section { margin-bottom: 40px; }
+        .section-title { font-size: 24px; margin-bottom: 20px; color: #e94560; }
+        .movie-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .movie-card { background: #16213e; border-radius: 10px; overflow: hidden; transition: transform 0.3s; cursor: pointer; }
+        .movie-card:hover { transform: translateY(-5px); }
+        .movie-poster { width: 100%; height: 280px; background: #333; }
+        .movie-info { padding: 10px; }
+        .movie-title { font-size: 16px; margin-bottom: 5px; }
+        .movie-rating { color: #f39c12; }
+        .movie-type { font-size: 12px; color: #999; }
+        .chart-container { height: 400px; background: #16213e; border-radius: 10px; padding: 20px; margin-top: 20px; }
+        .btn { background: #e94560; color: #fff; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; transition: all 0.3s; }
+        .btn-secondary { background: #3498db; }
+        .btn-secondary:hover { background: #2980b9; }
+        .ai-chat-box { background: #16213e; border-radius: 10px; padding: 20px; margin-top: 20px; }
+        .ai-message { background: #1a1a2e; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+        .ai-message.user { background: #3498db; }
+        .ai-message.assistant { background: #2ecc71; color: #000; }
+        .ai-input-area { display: flex; gap: 10px; margin-top: 15px; }
+        .ai-input-area input { flex: 1; padding: 10px; border: none; border-radius: 20px; background: #333; color: #fff; }
+        .ai-result { white-space: pre-wrap; line-height: 1.6; }
+        .ai-loading { color: #e94560; font-style: italic; }
+        .ai-card { background: #16213e; border-radius: 10px; padding: 15px; margin-bottom: 15px; }
+        .ai-card h4 { color: #e94560; margin-bottom: 10px; }
+        .btn:hover { background: #c73e54; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
+        .modal-content { background: #16213e; padding: 20px; border-radius: 10px; width: 400px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group input { width: 100%; padding: 10px; border: none; border-radius: 5px; background: #333; color: #fff; }
+        .login-status { color: #2ecc71; }
+        .vip-badge { background: #f39c12; color: #000; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="nav">
+            <div class="logo">🎬 电影天堂</div>
+            <div class="menu">
+                <a href="#" onclick="showSection('hot')">热播排行</a>
+                <a href="#" onclick="showSection('type')">按类型</a>
+                <a href="#" onclick="showSection('region')">按地区</a>
+                <a href="#" onclick="showSection('rank')">排行榜</a>
+                <a href="#" onclick="showSection('creator')">主创作品</a>
+                <a href="#" onclick="showSection('charts')">数据图表</a>
+                <a href="#" onclick="showSection('export')">导出报表</a>
+                <a href="#" onclick="showSection('ai')">AI推荐</a>
+            </div>
+            <div>
+                <span id="loginStatus"></span>
+                <button class="btn" onclick="showLogin()" id="loginBtn">登录</button>
+                <button class="btn" onclick="showRegister()" id="registerBtn">注册</button>
+                <button class="btn" onclick="logout()" id="logoutBtn" style="display:none;">退出</button>
+                
+            </div>
+        </div>
+    </div>
+
+    <div class="main">
+        <div id="hotSection" class="section">
+            <h2 class="section-title">🔥 热播电影</h2>
+            <div id="hotMovies" class="movie-grid"></div>
+        </div>
+
+        <div id="typeSection" class="section" style="display:none;">
+            <h2 class="section-title">按类型筛选</h2>
+            <div id="typeButtons">
+                <span style="color:#999;">加载中...</span>
+            </div>
+            <div id="typeMovies" class="movie-grid"></div>
+        </div>
+
+        <div id="regionSection" class="section" style="display:none;">
+            <h2 class="section-title">按地区筛选</h2>
+            <div id="regionButtons">
+                <span style="color:#999;">加载中...</span>
+            </div>
+            <div id="regionMovies" class="movie-grid"></div>
+        </div>
+
+        <div id="rankSection" class="section" style="display:none;">
+            <h2 class="section-title">🏆 电影排行榜</h2>
+            <div>
+                <button class="btn" onclick="getRank('week')">本周排行</button>
+                <button class="btn" onclick="getRank('month')">本月排行</button>
+                <button class="btn" onclick="getRank('all')">全部排行</button>
+                <button class="btn" onclick="getRank('rating')">好评排行</button>
+            </div>
+            <div id="rankMovies" class="movie-grid"></div>
+        </div>
+
+        <div id="creatorSection" class="section" style="display:none;">
+            <h2 class="section-title">👥 主创作品</h2>
+            <div>
+                <input type="text" id="creatorSearch" placeholder="搜索演员或导演">
+                <button class="btn" onclick="searchActor()">搜索演员</button>
+                <button class="btn" onclick="searchDirector()">搜索导演</button>
+            </div>
+            <div id="creatorResults"></div>
+            <div id="creatorMovies" class="movie-grid"></div>
+        </div>
+
+        <div id="chartsSection" class="section" style="display:none;">
+            <h2 class="section-title">📊 数据图表</h2>
+            <div>
+                <button class="btn" onclick="loadCharts()">加载图表</button>
+            </div>
+            <div id="barChart" class="chart-container"></div>
+            <div id="pieChart" class="chart-container"></div>
+            <div id="regionChart" class="chart-container"></div>
+            <div id="vipChart" class="chart-container"></div>
+        </div>
+
+        <div id="exportSection" class="section" style="display:none;">
+            <h2 class="section-title">📥 导出报表</h2>
+            <div style="margin-bottom: 20px;">
+                <h4 style="color: #e94560; margin-bottom: 10px;">按日期导出播放记录</h4>
+                <input type="date" id="exportStart">
+                <input type="date" id="exportEnd">
+                <button class="btn" onclick="exportReport()">导出Excel</button>
+            </div>
+            <div>
+                <h4 style="color: #e94560; margin-bottom: 10px;">导出全部电影榜单</h4>
+                <button class="btn btn-secondary" onclick="exportAllMovies()">导出全部电影榜单</button>
+            </div>
+        </div>
+
+        <div id="aiSection" class="section" style="display:none;">
+            <h2 class="section-title">🤖 AI智能助手</h2>
+            
+            <div class="ai-card">
+                <h4>🎬 电影推荐</h4>
+                <div style="margin-bottom: 10px;">
+                    <input type="text" id="aiGenre" placeholder="电影类型（如：科幻、动作）" style="width: 200px; padding: 8px; border-radius: 5px; background: #333; color: #fff; border: none;">
+                    <input type="text" id="aiActor" placeholder="演员名字" style="width: 150px; padding: 8px; border-radius: 5px; background: #333; color: #fff; border: none; margin-left: 10px;">
+                    <input type="text" id="aiDirector" placeholder="导演名字" style="width: 150px; padding: 8px; border-radius: 5px; background: #333; color: #fff; border: none; margin-left: 10px;">
+                </div>
+                <button class="btn" onclick="getAIRecommend()">获取推荐</button>
+            </div>
+
+            <div class="ai-card">
+                <h4>📝 影评生成</h4>
+                <input type="text" id="reviewMovie" placeholder="输入电影名称" style="width: 300px; padding: 8px; border-radius: 5px; background: #333; color: #fff; border: none;">
+                <button class="btn btn-secondary" onclick="generateReview()">生成影评</button>
+            </div>
+
+            <div class="ai-card">
+                <h4>🔍 智能搜索</h4>
+                <input type="text" id="searchQuery" placeholder="输入搜索关键词" style="width: 300px; padding: 8px; border-radius: 5px; background: #333; color: #fff; border: none;">
+                <button class="btn btn-secondary" onclick="aiSearch()">智能搜索</button>
+            </div>
+
+            <div class="ai-card">
+                <h4>💬 AI聊天</h4>
+                <div id="chatMessages"></div>
+                <div class="ai-input-area">
+                    <input type="text" id="chatInput" placeholder="输入您的问题...">
+                    <button class="btn" onclick="sendChat()">发送</button>
+                </div>
+            </div>
+
+            <div id="aiResult"></div>
+        </div>
+    </div>
+
+    <div id="playModal" class="modal">
+        <div class="modal-content">
+            <span style="float:right; cursor:pointer;" onclick="closePlayModal()">×</span>
+            <h3>播放电影</h3>
+            <div id="videoPlayer"></div>
+            <div id="playErrorMessage"></div>
+        </div>
+    </div>
+
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span style="float:right; cursor:pointer;" onclick="closeLoginModal()">×</span>
+            <h3>登录</h3>
+            <div class="form-group">
+                <label>用户名/邮箱</label>
+                <input type="text" id="loginUsername">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="loginPassword">
+            </div>
+            <button class="btn" onclick="login()">登录</button>
+        </div>
+    </div>
+
+    <div id="registerModal" class="modal">
+        <div class="modal-content">
+            <span style="float:right; cursor:pointer;" onclick="closeRegisterModal()">×</span>
+            <h3>注册</h3>
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" id="regUsername">
+            </div>
+            <div class="form-group">
+                <label>邮箱</label>
+                <input type="email" id="regEmail">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" id="regPassword">
+            </div>
+            <button class="btn" onclick="register()">注册</button>
+        </div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('token');
+        let userId = localStorage.getItem('userId');
+
+        function checkLogin() {
+            if (token) {
+                document.getElementById('loginBtn').style.display = 'none';
+                document.getElementById('registerBtn').style.display = 'none';
+                document.getElementById('logoutBtn').style.display = 'inline-block';
+                document.getElementById('loginStatus').innerHTML = '<span class="login-status">已登录</span>';
+            } else {
+                document.getElementById('loginBtn').style.display = 'inline-block';
+                document.getElementById('registerBtn').style.display = 'inline-block';
+                document.getElementById('logoutBtn').style.display = 'none';
+                document.getElementById('loginStatus').innerHTML = '';
+            }
+        }
+
+        function showSection(section) {
+            document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+            document.getElementById(section + 'Section').style.display = 'block';
+        }
+
+        async function fetchMovies(url) {
+            const response = await fetch(url);
+            const data = await response.json();
+            return data.records || data;
+        }
+
+        function renderMovies(movies, containerId) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            movies.forEach(movie => {
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+                card.innerHTML = `
+                    <div class="movie-poster" style="background:url(${movie.poster || 'https://via.placeholder.com/200x280'}) center/cover"></div>
+                    <div class="movie-info">
+                        <div class="movie-title">${movie.title} ${movie.isVip == 1 ? '<span class="vip-badge">VIP</span>' : ''}</div>
+                        <div class="movie-rating">⭐ ${movie.rating || '暂无评分'}</div>
+                        <div class="movie-type">${movie.type} | ${movie.region}</div>
+                    </div>
+                `;
+                card.onclick = () => playMovie(movie.id, movie.isVip);
+                container.appendChild(card);
+            });
+        }
+
+        async function loadHotMovies() {
+            const movies = await fetchMovies('/api/movie/hot');
+            renderMovies(movies, 'hotMovies');
+        }
+
+        async function loadTypeButtons() {
+            try {
+                const response = await fetch('/api/movie/types');
+                const types = await response.json();
+                const container = document.getElementById('typeButtons');
+                container.innerHTML = '';
+                types.forEach(type => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn';
+                    btn.textContent = type;
+                    btn.onclick = () => getMoviesByType(type);
+                    btn.style.margin = '0 8px 8px 0';
+                    container.appendChild(btn);
+                });
+            } catch (e) {
+                console.error('加载分类失败:', e);
+            }
+        }
+
+        async function loadRegionButtons() {
+            try {
+                const response = await fetch('/api/movie/regions');
+                const regions = await response.json();
+                const container = document.getElementById('regionButtons');
+                container.innerHTML = '';
+                regions.forEach(region => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn';
+                    btn.textContent = region;
+                    btn.onclick = () => getMoviesByRegion(region);
+                    btn.style.margin = '0 8px 8px 0';
+                    container.appendChild(btn);
+                });
+            } catch (e) {
+                console.error('加载地区失败:', e);
+            }
+        }
+
+        async function getMoviesByType(type) {
+            const movies = await fetchMovies(`/api/movie/type/${type}`);
+            renderMovies(movies, 'typeMovies');
+        }
+
+        async function getMoviesByRegion(region) {
+            const movies = await fetchMovies(`/api/movie/region/${region}`);
+            renderMovies(movies, 'regionMovies');
+        }
+
+        async function getRank(type) {
+            const movies = await fetchMovies(`/api/movie/rank/${type}`);
+            renderMovies(movies, 'rankMovies');
+        }
+
+        async function searchActor() {
+            const name = document.getElementById('creatorSearch').value;
+            const response = await fetch(`/api/creator/actor/search?name=${name}`);
+            const actors = await response.json();
+            const results = document.getElementById('creatorResults');
+            results.innerHTML = '<h3>演员列表</h3>';
+            actors.forEach(actor => {
+                const div = document.createElement('div');
+                div.innerHTML = `<span style="cursor:pointer;color:#e94560" onclick="getActorMovies(${actor.id})">${actor.name}</span>`;
+                results.appendChild(div);
+            });
+        }
+
+        async function searchDirector() {
+            const name = document.getElementById('creatorSearch').value;
+            const response = await fetch(`/api/creator/director/search?name=${name}`);
+            const directors = await response.json();
+            const results = document.getElementById('creatorResults');
+            results.innerHTML = '<h3>导演列表</h3>';
+            directors.forEach(dir => {
+                const div = document.createElement('div');
+                div.innerHTML = `<span style="cursor:pointer;color:#e94560" onclick="getDirectorMovies(${dir.id})">${dir.name}</span>`;
+                results.appendChild(div);
+            });
+        }
+
+        async function getActorMovies(id) {
+            const movies = await fetchMovies(`/api/creator/actor/${id}`);
+            renderMovies(movies, 'creatorMovies');
+        }
+
+        async function getDirectorMovies(id) {
+            const movies = await fetchMovies(`/api/creator/director/${id}`);
+            renderMovies(movies, 'creatorMovies');
+        }
+
+        function playMovie(movieId, isVip) {
+            if (!token) {
+                alert('请先登录');
+                showLogin();
+                return;
+            }
+            // 直接发送请求到后端，由后端判断是否有权限播放
+            fetch(`/api/movie/play/${movieId}`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token }
+            }).then(res => res.json()).then(data => {
+                if (data.success) {
+                    document.getElementById('videoPlayer').innerHTML = `<video width="100%" height="300" controls><source src="${data.videoUrl}" type="video/mp4"></video>`;
+                    document.getElementById('playModal').style.display = 'flex';
+                    document.getElementById('playErrorMessage').innerHTML = '';
+                } else {
+                    document.getElementById('playErrorMessage').innerHTML = data.message;
+                }
+            }).catch(error => {
+                console.error('播放请求失败:', error);
+                document.getElementById('playErrorMessage').innerHTML = '播放请求失败，请重试';
+            });
+        }
+
+        function closePlayModal() {
+            document.getElementById('playModal').style.display = 'none';
+        }
+
+        function showLogin() {
+            document.getElementById('loginModal').style.display = 'flex';
+        }
+
+        function closeLoginModal() {
+            document.getElementById('loginModal').style.display = 'none';
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            const response = await fetch('/api/user/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+            if (data.success) {
+                token = data.token;
+                userId = data.user.id;
+                localStorage.setItem('token', token);
+                localStorage.setItem('userId', userId);
+                closeLoginModal();
+                checkLogin();
+                alert('登录成功');
+            } else {
+                alert(data.message);
+            }
+        }
+
+        function showRegister() {
+            document.getElementById('registerModal').style.display = 'flex';
+        }
+
+        function closeRegisterModal() {
+            document.getElementById('registerModal').style.display = 'none';
+        }
+
+        async function register() {
+            const username = document.getElementById('regUsername').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            const response = await fetch('/api/user/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, password })
+            });
+            const data = await response.json();
+            if (data.success) {
+                token = data.token;
+                userId = data.user.id;
+                localStorage.setItem('token', token);
+                localStorage.setItem('userId', userId);
+                closeRegisterModal();
+                checkLogin();
+                alert('注册成功');
+            } else {
+                alert(data.message);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('userId');
+            token = null;
+            userId = null;
+            checkLogin();
+            alert('已退出登录');
+        }
+
+        async function loadCharts() {
+            try {
+                const response = await fetch('/api/report/stats');
+                if (!response.ok) {
+                    throw new Error('获取数据失败');
+                }
+                const data = await response.json();
+                if (!data || data.length === 0) {
+                    alert('暂无图表数据');
+                    return;
+                }
+
+                // 1. 电影播放量排行 - 柱状图
+                const barChart = echarts.init(document.getElementById('barChart'));
+                const top10 = data.slice(0, 10);
+                barChart.setOption({
+                    backgroundColor: 'transparent',
+                    title: { 
+                        text: '电影播放量排行 (Top 10)', 
+                        left: 'center',
+                        textStyle: { color: '#fff', fontSize: 18 }
+                    },
+                    tooltip: { 
+                        trigger: 'axis',
+                        axisPointer: { type: 'shadow' }
+                    },
+                    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
+                    xAxis: { 
+                        type: 'category', 
+                        data: top10.map(d => d.title),
+                        axisLabel: { color: '#fff', rotate: 30, fontSize: 11 },
+                        axisLine: { lineStyle: { color: '#666' } }
+                    },
+                    yAxis: { 
+                        type: 'value',
+                        axisLabel: { color: '#fff' },
+                        axisLine: { lineStyle: { color: '#666' } },
+                        splitLine: { lineStyle: { color: '#333' } }
+                    },
+                    series: [{ 
+                        type: 'bar', 
+                        data: top10.map(d => d.playCount), 
+                        itemStyle: { 
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#e94560' },
+                                { offset: 1, color: '#c0392b' }
+                            ])
+                        },
+                        label: { show: true, position: 'top', color: '#fff' }
+                    }]
+                });
+
+                // 2. 电影类型分布 - 饼图
+                const typeMap = {};
+                data.forEach(d => {
+                    const types = d.type ? d.type.split('/') : ['其他'];
+                    types.forEach(t => {
+                        typeMap[t] = (typeMap[t] || 0) + 1;
+                    });
+                });
+                const pieData = Object.entries(typeMap).map(([name, value]) => ({ name, value }));
+                
+                const pieChart = echarts.init(document.getElementById('pieChart'));
+                pieChart.setOption({
+                    backgroundColor: 'transparent',
+                    title: { 
+                        text: '电影类型分布', 
+                        left: 'center',
+                        textStyle: { color: '#fff', fontSize: 18 }
+                    },
+                    tooltip: { trigger: 'item', formatter: '{a} <br/>{b}: {c} ({d}%)' },
+                    legend: { 
+                        orient: 'vertical', 
+                        left: 'left',
+                        textStyle: { color: '#fff' }
+                    },
+                    series: [{ 
+                        name: '类型', 
+                        type: 'pie', 
+                        radius: ['40%', '70%'],
+                        center: ['60%', '55%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: { borderRadius: 10, borderColor: '#1a1a2e', borderWidth: 2 },
+                        label: { show: true, color: '#fff' },
+                        emphasis: { label: { show: true, fontSize: 16, fontWeight: 'bold' } },
+                        data: pieData 
+                    }]
+                });
+
+                // 3. 地区分布 - 饼图（南丁格尔玫瑰图）
+                const regionMap = {};
+                data.forEach(d => {
+                    regionMap[d.region] = (regionMap[d.region] || 0) + 1;
+                });
+                const regionData = Object.entries(regionMap).map(([name, value]) => ({ name, value }));
+                
+                const regionChart = echarts.init(document.getElementById('regionChart'));
+                regionChart.setOption({
+                    backgroundColor: 'transparent',
+                    title: { 
+                        text: '电影地区分布', 
+                        left: 'center',
+                        textStyle: { color: '#fff', fontSize: 18 }
+                    },
+                    tooltip: { trigger: 'item' },
+                    legend: { 
+                        top: 'bottom',
+                        textStyle: { color: '#fff' }
+                    },
+                    series: [{ 
+                        name: '地区', 
+                        type: 'pie', 
+                        radius: [20, 100],
+                        center: ['50%', '50%'],
+                        roseType: 'area',
+                        itemStyle: { borderRadius: 5 },
+                        label: { color: '#fff' },
+                        data: regionData 
+                    }]
+                });
+
+                // 4. VIP/免费电影分布 - 环形图
+                const vipCount = data.filter(d => d.isVip == 1).length;
+                const freeCount = data.filter(d => d.isVip == 0).length;
+                
+                const vipChart = echarts.init(document.getElementById('vipChart'));
+                vipChart.setOption({
+                    backgroundColor: 'transparent',
+                    title: { 
+                        text: 'VIP/免费电影分布', 
+                        left: 'center',
+                        textStyle: { color: '#fff', fontSize: 18 }
+                    },
+                    tooltip: { trigger: 'item' },
+                    legend: { 
+                        orient: 'vertical', 
+                        left: 'left',
+                        textStyle: { color: '#fff' }
+                    },
+                    series: [{ 
+                        name: '影片类型', 
+                        type: 'pie', 
+                        radius: ['50%', '70%'],
+                        center: ['60%', '55%'],
+                        label: { 
+                            show: true, 
+                            formatter: '{b}: {c}部\n({d}%)',
+                            color: '#fff'
+                        },
+                        data: [
+                            { value: vipCount, name: 'VIP影片', itemStyle: { color: '#e94560' } },
+                            { value: freeCount, name: '免费影片', itemStyle: { color: '#2ecc71' } }
+                        ]
+                    }]
+                });
+
+                // 响应式处理
+                window.addEventListener('resize', () => {
+                    barChart.resize();
+                    pieChart.resize();
+                    regionChart.resize();
+                    vipChart.resize();
+                });
+
+            } catch (error) {
+                console.error('加载图表失败:', error);
+                alert('加载图表失败: ' + error.message);
+            }
+        }
+
+        function exportReport() {
+            const start = document.getElementById('exportStart').value;
+            const end = document.getElementById('exportEnd').value;
+            if (!start || !end) {
+                alert('请选择开始和结束日期');
+                return;
+            }
+            window.location.href = `/api/report/export?startDate=${start}&endDate=${end}`;
+        }
+
+        function exportAllMovies() {
+            window.location.href = '/api/report/export-all';
+        }
+
+        async function getAIRecommend() {
+            const genre = document.getElementById('aiGenre').value;
+            const actor = document.getElementById('aiActor').value;
+            const director = document.getElementById('aiDirector').value;
+            
+            let url = '/api/ai/recommend';
+            let params = [];
+            if (genre) params.push(`genre=${encodeURIComponent(genre)}`);
+            if (actor) params.push(`actor=${encodeURIComponent(actor)}`);
+            if (director) params.push(`director=${encodeURIComponent(director)}`);
+            if (params.length > 0) url += '?' + params.join('&');
+
+            document.getElementById('aiResult').innerHTML = '<div class="ai-loading">正在获取推荐...</div>';
+            
+            const response = await fetch(url);
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('aiResult').innerHTML = `<div class="ai-result"><strong>🎬 AI推荐结果：</strong><br>${data.content}</div>`;
+            } else {
+                document.getElementById('aiResult').innerHTML = `<div style="color: #e94560;">${data.message}</div>`;
+            }
+        }
+
+        async function generateReview() {
+            const movieName = document.getElementById('reviewMovie').value;
+            if (!movieName) {
+                alert('请输入电影名称');
+                return;
+            }
+
+            document.getElementById('aiResult').innerHTML = '<div class="ai-loading">正在生成影评...</div>';
+            
+            const response = await fetch(`/api/ai/review?movieName=${encodeURIComponent(movieName)}`);
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('aiResult').innerHTML = `<div class="ai-result"><strong>📝 《${movieName}》影评：</strong><br>${data.content}</div>`;
+            } else {
+                document.getElementById('aiResult').innerHTML = `<div style="color: #e94560;">${data.message}</div>`;
+            }
+        }
+
+        async function aiSearch() {
+            const query = document.getElementById('searchQuery').value;
+            if (!query) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            document.getElementById('aiResult').innerHTML = '<div class="ai-loading">正在分析搜索...</div>';
+            
+            const response = await fetch(`/api/ai/search?query=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('aiResult').innerHTML = `<div class="ai-result"><strong>🔍 搜索结果：</strong><br>${data.content}</div>`;
+            } else {
+                document.getElementById('aiResult').innerHTML = `<div style="color: #e94560;">${data.message}</div>`;
+            }
+        }
+
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const chatMessages = document.getElementById('chatMessages');
+            
+            chatMessages.innerHTML += `<div class="ai-message user">👤 ${message}</div>`;
+            input.value = '';
+            chatMessages.innerHTML += '<div class="ai-message assistant ai-loading">🤖 正在思考...</div>';
+
+            const response = await fetch(`/api/ai/chat?msg=${encodeURIComponent(message)}`);
+            const data = await response.json();
+            
+            chatMessages.innerHTML = chatMessages.innerHTML.replace(
+                '<div class="ai-message assistant ai-loading">🤖 正在思考...</div>',
+                `<div class="ai-message assistant">🤖 ${data.success ? data.content : data.message}</div>`
+            );
+            
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        checkLogin();
+        loadHotMovies();
+        loadTypeButtons();
+        loadRegionButtons();
+    </script>
+</body>
+</html>
